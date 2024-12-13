@@ -1,0 +1,41 @@
+
+      1000 * max by (alertname, cluster, namespace, pod) (
+        group by (alertname, cluster, namespace, pod, container) (
+          ALERTS{alertstate="firing", alertname=~"(Kube.*|CPUThrottlingHigh)", cluster=~"my-cluster", namespace=~".+", pod!="", container=""}
+        )
+        * on (alertname, cluster, namespace, pod) group_left
+        max by (alertname, cluster, namespace, pod, container) (
+          ALERTS_FOR_STATE{alertname=~"(Kube.*|CPUThrottlingHigh)", cluster=~"my-cluster", namespace=~".+", pod!="", container=""}
+        )
+      )
+      * on (cluster, namespace, pod) group_left (workload, workload_type)
+      group by (cluster, namespace, pod, workload, workload_type) (
+        
+          namespace_workload_pod:kube_pod_owner:relabel{cluster=~".+", namespace=~".+", workload_type=~".+", workload!="", pod=~"()"}
+  
+          OR
+  
+          label_replace(
+            label_replace(
+              namespace_workload_pod:kube_pod_owner:relabel{cluster=~".+", namespace=~".+", workload_type=~".+", workload="", pod=~"()"}
+            , "workload", "$1", "pod", "(.+)-(.+)")
+          , "workload_type", "replicaset", "", "")
+  
+          OR
+  
+          label_replace(
+            label_replace(
+              kube_pod_owner{cluster=~".+", namespace=~".+", pod=~"()", owner_kind=""}
+            , "workload", "$1", "pod", "(.+)")
+          , "workload_type", "pod", "", "")
+  
+          OR
+  
+          label_replace(
+            label_replace(
+              kube_pod_owner{cluster=~".+", namespace=~".+", pod=~"()", owner_kind="Node"}
+            , "workload", "$1", "pod", "(.+)")
+          , "workload_type", "staticpod", "", "")
+        
+      )
+    
